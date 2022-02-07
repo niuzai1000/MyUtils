@@ -3,26 +3,39 @@ package cn.wqy.IOUtils;
 import cn.wqy.UtilsAnnotation.UtilsAnnotation;
 
 import java.io.*;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 @UtilsAnnotation("IO Utils")
 public class MyIOUtils {
 
     private MyIOUtils() {}
 
-    public static void copyFile(File oldFile , File newFile) throws FileNotFoundException {
-        if (!oldFile.exists()) throw new FileNotFoundException("被复制的文件不存在");
-        if (!newFile.exists()) {
-            try {
-                if (!newFile.createNewFile()) throw new FileNotFoundException("无法在新路径下创建文件");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+    private static void makeSureFileExist(File sourceFile , File targetFile) throws IOException {
+        if (!sourceFile.exists()) throw new FileNotFoundException("被复制的文件不存在");
+        if (!targetFile.exists()) {
+            if (!targetFile.createNewFile()) throw new IOException("无法在新路径下创建文件");
         }
+    }
+
+
+    public static Charset getFileCharset(InputStream is) throws IOException {
+        byte[] head = new byte[3];
+
+        @SuppressWarnings("unused")
+        int returnValue = is.read(head);
+
+        if (head[0] == -17 && head[1] == -69 && head[2] == -65) return Charset.forName("GBK");
+        else return StandardCharsets.UTF_8;
+    }
+
+    public static void copyFile(File sourceFile , File targetFile) throws IOException {
+        makeSureFileExist(sourceFile , targetFile);
         FileInputStream fis = null;
         FileOutputStream fos = null;
         try {
-            fis = new FileInputStream(oldFile);
-            fos = new FileOutputStream(newFile);
+            fis = new FileInputStream(sourceFile);
+            fos = new FileOutputStream(targetFile);
             byte[] data = new byte[1024 * 512 * 16];
             int read_count;
             while((read_count = fis.read(data)) != -1){
@@ -32,6 +45,34 @@ public class MyIOUtils {
             e.printStackTrace();
         } finally {
             try {
+                close(fis , fos);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public static void copyTextFile(File sourceFile, File targetFile , Charset targetCharset) throws IOException {
+        makeSureFileExist(sourceFile, targetFile);
+        FileInputStream fis = null;
+        FileOutputStream fos = null;
+        InputStreamReader isr = null;
+        OutputStreamWriter osw = null;
+        try {
+            fis = new FileInputStream(sourceFile);
+            fos = new FileOutputStream(targetFile);
+            isr = new InputStreamReader(fis , getFileCharset(fis));
+            osw = new OutputStreamWriter(fos , targetCharset);
+            char[] data = new char[1024 * 512 * 16];
+            int read_count;
+            while((read_count = isr.read(data)) != -1){
+                osw.write(data,0,read_count);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                close(isr , osw);
                 close(fis , fos);
             } catch (IOException e) {
                 e.printStackTrace();
@@ -106,4 +147,21 @@ public class MyIOUtils {
     public static void close(OutputStream os) throws IOException {
         close(null , os);
     }
+
+    public static void close(Reader reader , Writer writer) throws IOException {
+        if (reader != null) reader.close();
+        if (writer != null){
+            writer.flush();
+            writer.close();
+        }
+    }
+
+    public static void close(Reader reader) throws IOException {
+        close(reader , null);
+    }
+
+    public static void close(Writer writer) throws IOException {
+        close(null , writer);
+    }
+
 }
