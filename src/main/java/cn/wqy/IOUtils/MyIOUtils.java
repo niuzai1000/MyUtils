@@ -19,11 +19,14 @@ public class MyIOUtils {
     }
 
 
-    public static Charset getFileCharset(InputStream is) throws IOException {
+    public static Charset getFileCharset(File file) throws IOException {
         byte[] head = new byte[3];
+        FileInputStream fis = new FileInputStream(file);
 
         @SuppressWarnings("unused")
-        int returnValue = is.read(head);
+        int returnValue = fis.read(head);
+
+        close(fis);
 
         if (head[0] == -17 && head[1] == -69 && head[2] == -65) return Charset.forName("GBK");
         else return StandardCharsets.UTF_8;
@@ -61,7 +64,7 @@ public class MyIOUtils {
         try {
             fis = new FileInputStream(sourceFile);
             fos = new FileOutputStream(targetFile);
-            isr = new InputStreamReader(fis , getFileCharset(fis));
+            isr = new InputStreamReader(fis , getFileCharset(sourceFile));
             osw = new OutputStreamWriter(fos , targetCharset);
             char[] data = new char[1024 * 512 * 16];
             int read_count;
