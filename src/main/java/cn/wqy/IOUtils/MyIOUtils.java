@@ -11,21 +11,21 @@ public class MyIOUtils {
 
     private MyIOUtils() {}
 
-    private static void makeSureFileExist(File sourceFile , File targetFile) throws IOException {
+    private static void copyDocInit(File sourceFile , File targetFile) throws IOException {
+        if (sourceFile == null || targetFile == null) throw new IOException("请正确输入文件类");
         if (!sourceFile.exists()) throw new FileNotFoundException("被复制的文件不存在");
-        if (!targetFile.exists()) {
-            if (!targetFile.createNewFile()) throw new IOException("无法在新路径下创建文件");
-        }
+        deleteFile(targetFile);
+        makeFileExist(targetFile , sourceFile.isDirectory());
     }
 
-    public static void copyFile(File sourceFile , File targetFile) throws IOException {
-        makeSureFileExist(sourceFile , targetFile);
+    public static void copyDoc(File sourceFile , File targetFile) throws IOException {
+        copyDocInit(sourceFile, targetFile);
         FileInputStream fis = null;
         FileOutputStream fos = null;
         try {
             fis = new FileInputStream(sourceFile);
             fos = new FileOutputStream(targetFile);
-            byte[] data = new byte[1024 * 512 * 16];
+            byte[] data = new byte[1024 * 512];
             int read_count;
             while((read_count = fis.read(data)) != -1){
                 fos.write(data,0,read_count);
@@ -41,8 +41,8 @@ public class MyIOUtils {
         }
     }
 
-    public static void copyTextFile(File sourceFile, File targetFile , Charset targetCharset) throws IOException {
-        makeSureFileExist(sourceFile, targetFile);
+    public static void copyTextDoc(File sourceFile, File targetFile , Charset targetCharset) throws IOException {
+        copyDocInit(sourceFile, targetFile);
         FileInputStream fis = null;
         FileOutputStream fos = null;
         InputStreamReader isr = null;
@@ -52,7 +52,7 @@ public class MyIOUtils {
             fos = new FileOutputStream(targetFile);
             isr = new InputStreamReader(fis , StandardCharsets.UTF_8);
             osw = new OutputStreamWriter(fos , targetCharset);
-            char[] data = new char[1024 * 512 * 16];
+            char[] data = new char[1024 * 512];
             int read_count;
             while((read_count = isr.read(data)) != -1){
                 osw.write(data,0,read_count);
@@ -69,56 +69,68 @@ public class MyIOUtils {
         }
     }
 
-    public static void copyFolder(File oldFolder , File newFolder) throws IOException {
-        copyFolder(oldFolder , newFolder , false);
-    }
-
-    public static void copyFolder(File oldFolder , File newFolder , boolean onlyRoot) throws IOException {
-        File[] files = oldFolder.listFiles();
-        if (files == null) throw new FileNotFoundException("文件夹 " + oldFolder + " 不存在，或出现了其他问题");
-        String oldAbsolutePath = oldFolder.getAbsolutePath();
-        String newAbsolutePath = newFolder.getAbsolutePath();
-        for (File oldFile : files){
-            File newFile = new File(oldFile.getAbsolutePath().replace(oldAbsolutePath , newAbsolutePath));
-            if (!newFile.exists()){
-                boolean succeed;
-                if (oldFile.isFile()) {
-                    if (!newFile.getParentFile().exists()) succeed = newFile.getParentFile().mkdirs();
-                    else succeed = true;
-                    if (!succeed) throw new IOException("无法创建新文件夹");
-                    succeed = newFile.createNewFile();
-                    if (!succeed) throw new IOException("无法创建新文件");
-                }
-                else if (oldFile.isDirectory()) {
-                    succeed = newFile.mkdirs();
-                    if (!succeed) throw new IOException("无法创建新文件夹");
-                }
-            }
-            if (oldFile.isFile()) copyFile(oldFile , newFile);
-            else if (!onlyRoot && oldFile.isDirectory()) {
-                copyFolder(oldFile, newFile);
-            }
+    public static void makeFileExist(File file , boolean isDirectory) throws IOException{
+        if (file == null) throw new IOException("请正确输入文件类");
+        if (file.exists()) return;
+        if (!isDirectory) {
+            if (!(file.getParentFile().exists() || file.getParentFile().mkdirs()))
+                throw new IOException("无法创建新文件夹");
+            if (!file.createNewFile())
+                throw new IOException("无法创建新文件");
+        }
+        else {
+            if (!file.mkdirs())
+                throw new IOException("无法创建新文件夹");
         }
     }
 
-    public static void deleteFolder(File folder) throws IOException {
-        deleteFolder(folder , false);
+    public static void copyFile(File sourceFolder, File targetFolder, boolean saveRootDirectory) throws IOException{
+        if (sourceFolder == null || targetFolder == null) throw new IOException("请正确输入文件类");
+        if (!sourceFolder.exists()) throw new IOException("请确保原文件存在");
+        if (!sourceFolder.isFile() && saveRootDirectory) copyFile0(sourceFolder , new File(targetFolder.getAbsolutePath() + '\\' + sourceFolder.getName()));
+        else copyFile0(sourceFolder, targetFolder);
     }
 
-    public static void deleteFolder(File folder , boolean onlyRoot) throws IOException {
-        File[] files = folder.listFiles();
-        if (files == null) throw new FileNotFoundException("文件夹 " + folder + " 不存在，或出现了其他问题");
-        for (File file : files){
-            if (file.isFile()) {
-                boolean succeed = file.delete();
-                if (!succeed) throw new IOException("文件无法删除");
-            }
-            else if (!onlyRoot && file.isDirectory()) {
-                deleteFolder(file , false);
-            }
+    public static void copyFile(File sourceFile, File targetFile) throws IOException {
+        copyFile(sourceFile, targetFile, false);
+    }
+
+    private static void copyFile0(File sourceFile, File targetFile) throws IOException {
+        makeFileExist(targetFile, sourceFile.isDirectory());
+        if (sourceFile.isFile()){
+            copyDoc(sourceFile , targetFile);
+            return;
         }
-        boolean succeed = folder.delete();
-        if (!succeed) throw new IOException("文件夹无法删除");
+        File[] files = sourceFile.listFiles();
+        if (files == null) throw new FileNotFoundException("文件夹内文件 " + sourceFile + " 不存在，或出现了其他问题");
+        String oldAbsolutePath = sourceFile.getAbsolutePath();
+        String newAbsolutePath = targetFile.getAbsolutePath();
+        for (File subFile : files){
+            copyFile0(subFile, new File(subFile.getAbsolutePath().replace(oldAbsolutePath , newAbsolutePath)));
+        }
+    }
+
+    public static void deleteFile(File file, boolean saveRootDir) throws IOException {
+        if (file == null) throw new IOException("请正确输入文件类");
+        if (!file.exists()) return;
+        deleteFile0(file);
+        if (!file.isFile() && saveRootDir) makeFileExist(file, true);
+    }
+
+    public static void deleteFile(File file) throws IOException {
+        deleteFile(file , false);
+    }
+
+    private static void deleteFile0(File file) throws IOException {
+        if (file.isFile()) {
+            if (!file.delete()) throw new IOException("不能删除" + file + "文件");
+        }
+        File[] subFiles = file.listFiles();
+        if (subFiles == null) return;
+        for (File subFile : subFiles){
+            deleteFile0(subFile);
+        }
+        if (!file.delete()) throw new IOException("文件无法删除");
     }
 
     public static void close(InputStream is , OutputStream os) throws IOException {
